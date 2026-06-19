@@ -5,17 +5,29 @@ advances the subscription period. Must be IDEMPOTENT (safe to run twice).
 
 from __future__ import annotations
 
+import calendar
+import sqlite3
 from dataclasses import dataclass
 from datetime import date
-from typing import Callable, Optional
+from typing import Callable
 
+from billing_engine.billing.pipeline import build_invoice
 from billing_engine.db import (
     Database,
     CustomerRepository, PlanRepository, SubscriptionRepository,
     UsageRecordRepository, InvoiceRepository, InvoiceLineItemRepository,
     LedgerRepository,
 )
-from billing_engine.models import Subscription
+from billing_engine.models import (
+    BillingPeriod,
+    InvoiceLineItem,
+    InvoiceStatus,
+    LedgerDirection,
+    LedgerEntry,
+    Subscription,
+    SubscriptionStatus,
+)
+
 
 
 @dataclass
@@ -24,6 +36,7 @@ class BillingResult:
     invoices_skipped_duplicate: int
     trials_activated: int
 
+        
 
 class BillingCycle:
     """Day-3 deliverable. Day-4 stretch: add `upgrade_subscription(...)`."""
@@ -40,7 +53,7 @@ class BillingCycle:
         ledger_repo: LedgerRepository,
         strategy_factory: Callable,    # given a Plan, returns a PricingStrategy
         discount_factory: Callable,    # given a discount_id or None, returns a Discount or None
-        tax_factory: Callable,         # given a Customer, returns (TaxCalculator, TaxContext)
+        tax_factory: Callable,         
     ) -> None:
         self.db = db
         self.customer_repo = customer_repo
