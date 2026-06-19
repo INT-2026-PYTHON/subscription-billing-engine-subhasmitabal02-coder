@@ -41,12 +41,21 @@ class ScriptedGateway(PaymentGateway):
     """
 
     def __init__(self, results: list[PaymentResult]) -> None:
-        # TODO Day 3
-        raise NotImplementedError("Day 3: implement ScriptedGateway.__init__")
+        self.results = results
+        self.index = 0
+
 
     def charge(self, invoice: Invoice) -> PaymentResult:
-        # TODO Day 3
-        raise NotImplementedError("Day 3: implement ScriptedGateway.charge")
+        if not self.results:
+            return PaymentResult(success=True)
+
+        result = self.results[self.index]
+
+        # move pointer safely
+        if self.index < len(self.results) - 1:
+            self.index += 1
+
+        return result
 
 
 # ----------------------------------------------------------------
@@ -56,9 +65,24 @@ class FakeRandomGateway(PaymentGateway):
     """Succeeds at a configurable rate; seeded for reproducibility."""
 
     def __init__(self, success_rate: float = 0.7, seed: Optional[int] = None) -> None:
-        # TODO Day 3
-        raise NotImplementedError("Day 3: implement FakeRandomGateway.__init__")
+        if not (0.0 <= success_rate <= 1.0):
+            raise ValueError("success_rate must be between 0 and 1")
+
+        self.success_rate = success_rate
+        self.random = random.Random(seed)
 
     def charge(self, invoice: Invoice) -> PaymentResult:
-        # TODO Day 3
-        raise NotImplementedError("Day 3: implement FakeRandomGateway.charge")
+        roll = self.random.random()
+
+        if roll < self.success_rate:
+            return PaymentResult(success=True)
+
+        reasons = [
+            "INSUFFICIENT_FUNDS",
+            "CARD_DECLINED",
+            "NETWORK_ERROR",
+        ]
+
+        reason = reasons[int(roll * 10) % len(reasons)]
+
+        return PaymentResult(success=False, failure_reason=reason)
