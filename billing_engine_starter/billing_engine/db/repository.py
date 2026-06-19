@@ -21,6 +21,7 @@ from decimal import Decimal
 from typing import Optional
 
 from billing_engine.db.database import Database
+from billing_engine.db import queries as q
 from billing_engine.money import Money
 from billing_engine.models import (
     Customer,
@@ -256,6 +257,13 @@ class LedgerRepository:
 # PAYMENT ATTEMPTS
 # ============================================================
 class PaymentAttemptRepository:
+    """Persistence boundary for payment retry history.
+
+    Each payment attempt records whether charging an invoice succeeded or
+    failed, why it failed, and when the next retry should happen. This history
+    powers the Day 3/4 dunning flow.
+    """
+
     def __init__(self, db: Database) -> None:
         self.db = db
 
@@ -267,13 +275,21 @@ class PaymentAttemptRepository:
         failure_reason: Optional[str],
         next_retry_at: Optional[datetime],
     ) -> int:
-        # TODO Day 3.
-        raise NotImplementedError("Day 3: implement PaymentAttemptRepository.add")
+        with self.db.transaction() as conn:
+            return q.insert_payment_attempt(
+                conn,
+                invoice_id,
+                attempt_no,
+                status,
+                failure_reason,
+                next_retry_at.isoformat() if next_retry_at else None,
+            )
 
     def list_for_invoice(self, invoice_id: int) -> list[dict]:
-        # TODO Day 3.
-        raise NotImplementedError("Day 3: implement PaymentAttemptRepository.list_for_invoice")
+        with self.db.connect() as conn:
+            rows = q.select_attempts_for_invoice(conn, invoice_id)
+        return [dict(row) for row in rows]
 
     def count_for_invoice(self, invoice_id: int) -> int:
-        # TODO Day 3.
-        raise NotImplementedError("Day 3: implement PaymentAttemptRepository.count_for_invoice")
+        with self.db.connect() as conn:
+            return q.count_attempts_for_invoice(conn, invoice_id)
