@@ -54,14 +54,65 @@ class BillingCycle:
         self.discount_factory = discount_factory
         self.tax_factory = tax_factory
 
-    # --------------------------------------------------------
+    
     def run(self, as_of: date) -> BillingResult:
         """Bill all subscriptions whose current period ends on or before `as_of`."""
-        # TODO Day 3
-        raise NotImplementedError("Day 3: implement BillingCycle.run")
 
-    # --------------------------------------------------------
+
     def upgrade_subscription(self, subscription_id: int, new_plan_id: int, switch_date: date) -> None:
         """Mid-cycle upgrade — Day 4 stretch."""
-        # TODO Day 4
-        raise NotImplementedError("Day 4: implement BillingCycle.upgrade_subscription")
+        subscription: Subscription = self.subscription_repo.get(subscription_id)
+
+        if subscription is None:
+            raise ValueError("Subscription not found")
+
+        old_plan = self.plan_repo.get(subscription.plan_id)
+        new_plan = self.plan_repo.get(new_plan_id)
+
+        if old_plan is None or new_plan is None:
+            raise ValueError("Plan not found")
+        
+        if not (subscription.current_period_start <= switch_date <= subscription.current_period_end):
+            raise ValueError("switch_date must be within current billing period")
+
+        tax_calc, tax_context = self.tax_factory(
+        self.customer_repo.get(subscription.customer_id)
+    )
+        proration = self.proration_service.compute_proration(
+        old_plan_price=old_plan.price,
+        new_plan_price=new_plan.price,
+        period_start=subscription.current_period_start,
+        period_end=subscription.current_period_end,
+        switch_date=switch_date,
+        tax_calc=tax_calc,
+        tax_context=tax_context,
+    )
+    
+
+        self.ledger_repo.add_entry(
+        LedgerEntry(
+        id=None,
+        invoice_id=None,
+        customer_id=subscription.customer_id,
+        amount=proration.credit_amount,
+        direction=LedgerDirection.CREDIT,
+        reason="Proration credit - unused old plan portion",
+    )
+)
+
+        self.ledger_repo.add_entry(
+        LedgerEntry(
+        id=None,
+        invoice_id=None,
+        customer_id=subscription.customer_id,
+        amount=proration.charge_amount,
+        direction=LedgerDirection.DEBIT,
+        reason="Proration charge - new plan upgrade",
+    )
+)
+        self.subscription_repo.update(
+        subscription_id,
+        plan_id=new_plan_id,
+        last_switch_date=switch_date,
+    )
+
